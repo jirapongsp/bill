@@ -7,8 +7,8 @@
 
 <title>Bill App Pro</title>
 
-<!-- Supabase -->
-<script> src="https://unpkg.com/@supabase/supabase-js@2"
+<!-- ✅ Supabase (แก้ถูกแล้ว) -->
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
 <style>
 body { font-family: Arial; background: #f5f6fa; padding: 10px; }
@@ -74,49 +74,32 @@ button { background: #3498db; color: white; border: none; }
 </div>
 
 <script>
-if (window.supabaseClient) {
-    console.warn("Supabase already exists");
-} else {
-    window.supabaseClient = window.supabase.createClient(
-        'https://qrfwdlmdbdmbzaevpxks.supabase.co',
-        'YOUR_ANON_KEY'
-    );
-}
 
-const supabase = window.supabaseClient;
-
-    
-// 🔥 ใส่ของคุณจริง
-const supabaseUrl = 'https://qrfwdlmdbdmbzaevpxks.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFyZndkbG1kYmRtYnphZXZweGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTM1NjEsImV4cCI6MjA5MTk2OTU2MX0.sXOWtQinjLMS-Mw5k8i0o7AgFiQezjiC6UMzdT550n0'
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
+// ✅ สร้าง Supabase client (ไม่มีซ้ำแล้ว)
+const supabase = window.supabase.createClient(
+    'https://qrfwdlmdbdmbzaevpxks.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFyZndkbG1kYmRtYnphZXZweGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTM1NjEsImV4cCI6MjA5MTk2OTU2MX0.sXOWtQinjLMS-Mw5k8i0o7AgFiQezjiC6UMzdT550n0'
+);
 
 let user = null;
 let data = [];
 
 // ================= AUTH =================
 async function register() {
-    const { data: res, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
         email: email.value,
         password: password.value
     });
 
-    console.log("REGISTER:", res, error);
-
-    if (error) {
-        alert(error.message);
-    } else {
-        alert("สมัครสำเร็จ");
-    }
+    if (error) alert(error.message);
+    else alert("สมัครสำเร็จ");
 }
 
 async function login() {
-    const { data: res, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
         email: email.value,
         password: password.value
     });
-
-    console.log("LOGIN:", res, error);
 
     if (error) {
         alert(error.message);
@@ -125,7 +108,6 @@ async function login() {
         location.reload();
     }
 }
-    
 
 async function logout() {
     await supabase.auth.signOut();
@@ -154,8 +136,6 @@ async function checkUser() {
 checkUser();
 
 // ================= DATA =================
-
-// โหลดรายการหลัก
 async function loadData() {
     const { data: result } = await supabase
         .from('bills')
@@ -166,7 +146,6 @@ async function loadData() {
     render();
 }
 
-// เพิ่มข้อมูล
 async function addPerson() {
     let numbers = document.getElementById("numbers").value
         .split(/[\s,]+/)
@@ -174,15 +153,13 @@ async function addPerson() {
 
     let total = numbers.length * price.value;
 
-    const item = {
+    await supabase.from('bills').insert([{
         name: name.value,
         numbers: numbers.join(","),
         amount: total,
         paid: false,
         user_id: user.id
-    };
-
-    await supabase.from('bills').insert([item]);
+    }]);
 
     name.value = numbers.value = price.value = "";
 
@@ -211,9 +188,9 @@ function render() {
     });
 }
 
-// update paid
 async function toggle(id){
     const item = data.find(x => x.id === id);
+
     await supabase
         .from('bills')
         .update({ paid: !item.paid })
@@ -222,7 +199,6 @@ async function toggle(id){
     loadData();
 }
 
-// delete
 async function del(id){
     await supabase.from('bills').delete().eq('id', id);
     loadData();
@@ -236,11 +212,11 @@ async function loadBills() {
         .eq('user_id', user.id)
         .order('id', { ascending: false });
 
-    const el = document.getElementById('bill-list');
-    el.innerHTML = '';
+    bill-list.innerHTML = '';
 
     data.forEach(b => {
-        el.innerHTML += `<div>${b.name} - ${b.amount} บาท</div>`;
+        document.getElementById('bill-list').innerHTML +=
+            `<div>${b.name} - ${b.amount} บาท</div>`;
     });
 }
 
