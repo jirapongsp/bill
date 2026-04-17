@@ -74,7 +74,18 @@ button { background: #3498db; color: white; border: none; }
 </div>
 
 <script>
+if (window.supabaseClient) {
+    console.warn("Supabase already exists");
+} else {
+    window.supabaseClient = window.supabase.createClient(
+        'https://qrfwdlmdbdmbzaevpxks.supabase.co',
+        'YOUR_ANON_KEY'
+    );
+}
 
+const supabase = window.supabaseClient;
+
+    
 // 🔥 ใส่ของคุณจริง
 const supabaseUrl = 'https://qrfwdlmdbdmbzaevpxks.supabase.co'
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFyZndkbG1kYmRtYnphZXZweGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTM1NjEsImV4cCI6MjA5MTk2OTU2MX0.sXOWtQinjLMS-Mw5k8i0o7AgFiQezjiC6UMzdT550n0'
