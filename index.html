@@ -87,12 +87,12 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
 
 // Firebase
-const firebaseConfig = {
-  apiKey: "YOUR_KEY",
-  authDomain: "YOUR_DOMAIN",
-  databaseURL: "YOUR_DB_URL",
-  projectId: "YOUR_ID"
-};
+//    const firebaseConfig = {
+ // apiKey: "YOUR_KEY",
+ // authDomain: "YOUR_DOMAIN",
+ // databaseURL: "YOUR_DB_URL",
+ // projectId: "YOUR_ID"
+//};
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
