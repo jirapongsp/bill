@@ -2,72 +2,78 @@
 <html lang="th">
 <head>
 
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2c3e50">
-
 <meta charset="UTF-8">
-<title>Bill Calculator Pro</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Bill App Pro</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body {
-    font-family: Arial;
-    background: #f5f6fa;
-    padding: 20px;
-}
-.container {
-    max-width: 900px;
-    margin: auto;
-}
-.card {
-    background: white;
-    padding: 15px;
-    margin-bottom: 10px;
-    border-radius: 10px;
-}
+body { font-family: Arial; background: #f5f6fa; padding: 10px; }
+.container { max-width: 500px; margin: auto; }
+.card { background: white; padding: 15px; margin-bottom: 10px; border-radius: 10px; }
+input, button { width: 100%; padding: 12px; margin-top: 5px; font-size: 16px; border-radius: 8px; }
+button { background: #3498db; color: white; border: none; }
 .paid { background: #d4edda; }
 .unpaid { background: #f8d7da; }
-button { margin: 3px; }
-.summary { font-weight: bold; margin-top: 20px; }
-input { margin: 3px; }
 </style>
+
 </head>
 
 <body>
 <div class="container">
 
-<!-- 🔥 MAIN PAGE -->
-<div id="mainPage">
+<!-- LOGIN -->
+<div id="loginPage">
+    <div class="card">
+        <h3>🔐 เข้าสู่ระบบ</h3>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <button onclick="register()">สมัคร</button>
+    </div>
+</div>
 
-<h2>💰 ระบบคำนวณบิล (Pro)</h2>
+<!-- MAIN -->
+<div id="mainPage" style="display:none;">
 
 <div class="card">
-    <input type="text" id="name" placeholder="ชื่อคน">
-    <input type="text" id="numbers" placeholder="เลข เช่น 12,34 หรือ 11 22 33">
-    <input type="number" id="price" placeholder="ราคา/เลข">
-    <button onclick="addPerson()">เพิ่ม</button>
-    <button onclick="clearForm()">🧹 ล้าง</button>
+    <button onclick="logout()">🚪 Logout</button>
 </div>
 
 <div class="card">
-    🔍 
-    <input type="text" id="search" placeholder="ค้นหาชื่อ..." onkeyup="render()">
-    <button onclick="clearSearch()">❌</button>
-    <button onclick="showUnpaid()">🔴 ดูคนค้างจ่าย</button>
+    <input id="name" placeholder="ชื่อ">
+    <input id="numbers" placeholder="เลข เช่น 11 22 33">
+    <input id="price" type="number" placeholder="ราคา/เลข">
+    <button onclick="addPerson()">เพิ่ม</button>
+</div>
+
+<div class="card">
+    <input id="search" placeholder="ค้นหา..." onkeyup="render()">
+    <button onclick="showUnpaid()">🔴 ค้าง</button>
+    <button onclick="sendToLine()">📤 LINE</button>
 </div>
 
 <div id="list"></div>
 
-<div class="card summary" id="summary"></div>
+<!-- 🔥 เพิ่ม history จาก Supabase -->
+<div class="card">
+    <h3>📦 ประวัติ (Supabase)</h3>
+    <div id="bill-list"></div>
+</div>
 
 </div>
 
-<!-- 🔥 UNPAID PAGE -->
+<!-- UNPAID -->
 <div id="unpaidPage" style="display:none;">
-    <div class="card">
-        <button onclick="backToMain()">⬅️ ย้อนกลับ</button>
-        <h3>🔴 รายชื่อค้างจ่าย</h3>
-    </div>
-
+    <button onclick="back()">⬅️ กลับ</button>
     <div id="unpaidList"></div>
 </div>
 
@@ -75,203 +81,185 @@ input { margin: 3px; }
 
 <script>
 
-let data = JSON.parse(localStorage.getItem("billData")) || [];
-let editIndex = null;
+// 🔥 ใส่ของคุณ
+const supabaseUrl = 'https://xxxxx.supabase.co'
+const supabaseKey = 'YOUR_ANON_KEY'
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
 
-function saveData() {
-    localStorage.setItem("billData", JSON.stringify(data));
+// Firebase
+const firebaseConfig = {
+  apiKey: "YOUR_KEY",
+  authDomain: "YOUR_DOMAIN",
+  databaseURL: "YOUR_DB_URL",
+  projectId: "YOUR_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let user = null;
+let data = [];
+
+// AUTH
+function register() {
+    firebase.auth().createUserWithEmailAndPassword(email.value, password.value)
+    .catch(e => alert(e.message));
 }
 
-// ➕ เพิ่มข้อมูล
-function addPerson() {
-    let name = document.getElementById("name").value.trim();
+function login() {
+    firebase.auth().signInWithEmailAndPassword(email.value, password.value)
+    .catch(e => alert(e.message));
+}
 
+function logout() {
+    firebase.auth().signOut();
+}
+
+firebase.auth().onAuthStateChanged(u => {
+    if (u) {
+        user = u;
+        loginPage.style.display = "none";
+        mainPage.style.display = "block";
+
+        db.ref("users/" + user.uid).on("value", snap => {
+            data = snap.val() || [];
+            render();
+        });
+
+        loadBills(); // 🔥 โหลด history
+
+    } else {
+        loginPage.style.display = "block";
+        mainPage.style.display = "none";
+    }
+});
+
+// DATA
+function save() {
+    db.ref("users/" + user.uid).set(data);
+}
+
+// 🔥 เพิ่ม Supabase ตอนเพิ่มข้อมูล
+function addPerson() {
     let numbers = document.getElementById("numbers").value
         .split(/[\s,]+/)
-        .map(n => n.trim())
-        .filter(n => n !== "");
+        .filter(n => n);
 
-    let price = parseFloat(document.getElementById("price").value);
+    let total = numbers.length * price.value;
 
-    if (!name || numbers.length === 0 || !price) {
-        alert("กรอกข้อมูลให้ครบ");
-        return;
-    }
+    const item = {
+        name: name.value,
+        numbers,
+        price: price.value,
+        total,
+        paid: false
+    };
 
-    let total = numbers.length * price;
+    data.push(item);
+    save();
 
-    if (editIndex !== null) {
-        data[editIndex] = { name, numbers, price, total, paid: data[editIndex].paid };
-        editIndex = null;
-    } else {
-        data.push({ name, numbers, price, total, paid: false });
-    }
+    // 🔥 บันทึก Supabase
+    saveBill(item);
 
-    saveData();
-
-    document.getElementById("name").value = "";
-    document.getElementById("numbers").value = "";
-    document.getElementById("price").value = "";
-
-    render();
+    name.value = numbers.value = price.value = "";
 }
 
-// 🔍 ล้างค้นหา
-function clearSearch() {
-    document.getElementById("search").value = "";
-    render();
-}
-
-// 🧹 ล้างฟอร์ม
-function clearForm() {
-    document.getElementById("name").value = "";
-    document.getElementById("numbers").value = "";
-    document.getElementById("price").value = "";
-    editIndex = null;
-}
-
-// 🔴 ดูคนค้าง (หน้าใหม่)
-function showUnpaid() {
-    document.getElementById("mainPage").style.display = "none";
-    document.getElementById("unpaidPage").style.display = "block";
-
-    let list = document.getElementById("unpaidList");
-    list.innerHTML = "";
-
-    let unpaid = data.filter(p => !p.paid);
-
-    if (unpaid.length === 0) {
-        list.innerHTML = "<div class='card'>ไม่มีรายการค้าง 🎉</div>";
-        return;
-    }
-
-    unpaid.forEach((p, i) => {
-        let div = document.createElement("div");
-        div.className = "card unpaid";
-
-        let realIndex = data.indexOf(p);
-
-        div.innerHTML = `
-            <b>${i + 1}. ${p.name}</b><br>
-            เลข: ${p.numbers.join(" ")}<br>
-            จำนวน: ${p.numbers.length} เลข<br>
-            รวม: ${p.total} บาท<br>
-            สถานะ: ค้างจ่าย<br>
-
-            <button onclick="togglePaid(${realIndex})">สลับสถานะ</button>
-            <button onclick="editItem(${realIndex})">แก้ไข</button>
-            <button onclick="deleteItem(${realIndex})">ลบ</button>
-        `;
-
-        list.appendChild(div);
-    });
-}
-
-// 🔙 กลับหน้าหลัก
-function backToMain() {
-    document.getElementById("mainPage").style.display = "block";
-    document.getElementById("unpaidPage").style.display = "none";
-}
-
-// 💰 สลับสถานะ
-function togglePaid(index) {
-    data[index].paid = !data[index].paid;
-    saveData();
-    render();
-}
-
-// ❌ ลบ
-function deleteItem(index) {
-    if (confirm("ลบรายการนี้?")) {
-        data.splice(index, 1);
-        saveData();
-        render();
-    }
-}
-
-// ✏️ แก้ไข
-function editItem(index) {
-    let p = data[index];
-    document.getElementById("name").value = p.name;
-    document.getElementById("numbers").value = p.numbers.join(" ");
-    document.getElementById("price").value = p.price;
-
-    editIndex = index;
-}
-
-// 🔄 แสดงผล
+// UI
 function render() {
-
-    data.sort((a, b) => {
-        let nameCompare = a.name.localeCompare(b.name, 'th');
-        if (nameCompare !== 0) return nameCompare;
-        return (a.numbers[0] || "").localeCompare(b.numbers[0] || "");
-    });
-
-    let list = document.getElementById("list");
-    let keyword = document.getElementById("search").value.toLowerCase();
-
     list.innerHTML = "";
 
-    let totalAll = 0;
-    let totalPaid = 0;
-    let totalUnpaid = 0;
-    let countPaid = 0;
-    let countAll = 0;
-    let indexDisplay = 1;
-
-    data.forEach((p, i) => {
-        if (!p.name.toLowerCase().includes(keyword)) return;
-
-        countAll++;
-        totalAll += p.total;
-
-        if (p.paid) {
-            totalPaid += p.total;
-            countPaid++;
-        } else {
-            totalUnpaid += p.total;
-        }
+    data.forEach((p,i)=>{
+        if(!p.name.includes(search.value)) return;
 
         let div = document.createElement("div");
-        div.className = "card " + (p.paid ? "paid" : "unpaid");
+        div.className = "card " + (p.paid ? "paid":"unpaid");
 
         div.innerHTML = `
-            <b>${indexDisplay}. ${p.name}</b><br>
-            เลข: ${p.numbers.join(", ")}<br>
-            จำนวน: ${p.numbers.length} เลข<br>
-            รวม: ${p.total} บาท<br>
-            สถานะ: ${p.paid ? "จ่ายแล้ว" : "ค้างจ่าย"}<br>
-
-            <button onclick="togglePaid(${i})">สลับสถานะ</button>
-            <button onclick="editItem(${i})">แก้ไข</button>
-            <button onclick="deleteItem(${i})">ลบ</button>
+        <b>${i+1}. ${p.name}</b><br>
+        ${p.total} บาท<br>
+        <button onclick="toggle(${i})">จ่าย</button>
+        <button onclick="del(${i})">ลบ</button>
         `;
 
         list.appendChild(div);
-        indexDisplay++;
     });
-
-    document.getElementById("summary").innerHTML = `
-        👥 ทั้งหมด: ${countAll} คน <br>
-        ✅ จ่ายแล้ว: ${countPaid} คน <br>
-        ❌ ค้าง: ${countAll - countPaid} คน <br><br>
-
-        💰 ยอดรวม: ${totalAll} บาท <br>
-        🟢 จ่ายแล้ว: ${totalPaid} บาท <br>
-        🔴 ค้าง: ${totalUnpaid} บาท
-    `;
 }
 
-// โหลดครั้งแรก
-render();
-
-</script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js');
+function toggle(i){
+    data[i].paid = !data[i].paid;
+    save();
 }
+
+function del(i){
+    data.splice(i,1);
+    save();
+}
+
+// UNPAID
+function showUnpaid(){
+    mainPage.style.display="none";
+    unpaidPage.style.display="block";
+
+    unpaidList.innerHTML="";
+
+    data.filter(p=>!p.paid).forEach((p,i)=>{
+        unpaidList.innerHTML += `${i+1}. ${p.name} - ${p.total}<br>`;
+    });
+}
+
+function back(){
+    mainPage.style.display="block";
+    unpaidPage.style.display="none";
+}
+
+// 🔥 Supabase Save
+async function saveBill(item) {
+    try {
+        await supabase.from('bills').insert([{
+            name: item.name,
+            amount: item.total,
+            numbers: item.numbers.join(","),
+            user_id: user.uid
+        }]);
+    } catch (e) {
+        console.error("Supabase error", e);
+    }
+}
+
+// 🔥 โหลด history
+async function loadBills() {
+    try {
+        const { data, error } = await supabase
+            .from('bills')
+            .select('*')
+            .eq('user_id', user.uid)
+            .order('id', { ascending: false });
+
+        if (error) throw error;
+
+        const el = document.getElementById('bill-list');
+        el.innerHTML = '';
+
+        data.forEach(b => {
+            el.innerHTML += `
+                <div>${b.name} - ${b.amount} บาท</div>
+            `;
+        });
+
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// LINE
+function sendToLine(){
+    let txt="🔴 ค้าง\n";
+    data.filter(p=>!p.paid).forEach((p,i)=>{
+        txt+=`${i+1}. ${p.name} ${p.total} บาท\n`;
+    });
+    window.open("https://line.me/R/msg/text/?"+encodeURIComponent(txt));
+}
+
 </script>
 
 </body>
