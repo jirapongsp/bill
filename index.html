@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2c3e50">
+
+<meta charset="UTF-8">
+<title>Bill Calculator Pro</title>
+
+<style>
+body {
+    font-family: Arial;
+    background: #f5f6fa;
+    padding: 20px;
+}
+.container {
+    max-width: 900px;
+    margin: auto;
+}
+.card {
+    background: white;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+}
+.paid { background: #d4edda; }
+.unpaid { background: #f8d7da; }
+button { margin: 3px; }
+.summary { font-weight: bold; margin-top: 20px; }
+input { margin: 3px; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<!-- 🔥 MAIN PAGE -->
+<div id="mainPage">
+
+<h2>💰 ระบบคำนวณบิล (Pro)</h2>
+
+<div class="card">
+    <input type="text" id="name" placeholder="ชื่อคน">
+    <input type="text" id="numbers" placeholder="เลข เช่น 12,34 หรือ 11 22 33">
+    <input type="number" id="price" placeholder="ราคา/เลข">
+    <button onclick="addPerson()">เพิ่ม</button>
+    <button onclick="clearForm()">🧹 ล้าง</button>
+</div>
+
+<div class="card">
+    🔍 
+    <input type="text" id="search" placeholder="ค้นหาชื่อ..." onkeyup="render()">
+    <button onclick="clearSearch()">❌</button>
+    <button onclick="showUnpaid()">🔴 ดูคนค้างจ่าย</button>
+</div>
+
+<div id="list"></div>
+
+<div class="card summary" id="summary"></div>
+
+</div>
+
+<!-- 🔥 UNPAID PAGE -->
+<div id="unpaidPage" style="display:none;">
+    <div class="card">
+        <button onclick="backToMain()">⬅️ ย้อนกลับ</button>
+        <h3>🔴 รายชื่อค้างจ่าย</h3>
+    </div>
+
+    <div id="unpaidList"></div>
+</div>
+
+</div>
+
+<script>
+
+let data = JSON.parse(localStorage.getItem("billData")) || [];
+let editIndex = null;
+
+function saveData() {
+    localStorage.setItem("billData", JSON.stringify(data));
+}
+
+// ➕ เพิ่มข้อมูล
+function addPerson() {
+    let name = document.getElementById("name").value.trim();
+
+    let numbers = document.getElementById("numbers").value
+        .split(/[\s,]+/)
+        .map(n => n.trim())
+        .filter(n => n !== "");
+
+    let price = parseFloat(document.getElementById("price").value);
+
+    if (!name || numbers.length === 0 || !price) {
+        alert("กรอกข้อมูลให้ครบ");
+        return;
+    }
+
+    let total = numbers.length * price;
+
+    if (editIndex !== null) {
+        data[editIndex] = { name, numbers, price, total, paid: data[editIndex].paid };
+        editIndex = null;
+    } else {
+        data.push({ name, numbers, price, total, paid: false });
+    }
+
+    saveData();
+
+    document.getElementById("name").value = "";
+    document.getElementById("numbers").value = "";
+    document.getElementById("price").value = "";
+
+    render();
+}
+
+// 🔍 ล้างค้นหา
+function clearSearch() {
+    document.getElementById("search").value = "";
+    render();
+}
+
+// 🧹 ล้างฟอร์ม
+function clearForm() {
+    document.getElementById("name").value = "";
+    document.getElementById("numbers").value = "";
+    document.getElementById("price").value = "";
+    editIndex = null;
+}
+
+// 🔴 ดูคนค้าง (หน้าใหม่)
+function showUnpaid() {
+    document.getElementById("mainPage").style.display = "none";
+    document.getElementById("unpaidPage").style.display = "block";
+
+    let list = document.getElementById("unpaidList");
+    list.innerHTML = "";
+
+    let unpaid = data.filter(p => !p.paid);
+
+    if (unpaid.length === 0) {
+        list.innerHTML = "<div class='card'>ไม่มีรายการค้าง 🎉</div>";
+        return;
+    }
+
+    unpaid.forEach((p, i) => {
+        let div = document.createElement("div");
+        div.className = "card unpaid";
+
+        let realIndex = data.indexOf(p);
+
+        div.innerHTML = `
+            <b>${i + 1}. ${p.name}</b><br>
+            เลข: ${p.numbers.join(" ")}<br>
+            จำนวน: ${p.numbers.length} เลข<br>
+            รวม: ${p.total} บาท<br>
+            สถานะ: ค้างจ่าย<br>
+
+            <button onclick="togglePaid(${realIndex})">สลับสถานะ</button>
+            <button onclick="editItem(${realIndex})">แก้ไข</button>
+            <button onclick="deleteItem(${realIndex})">ลบ</button>
+        `;
+
+        list.appendChild(div);
+    });
+}
+
+// 🔙 กลับหน้าหลัก
+function backToMain() {
+    document.getElementById("mainPage").style.display = "block";
+    document.getElementById("unpaidPage").style.display = "none";
+}
+
+// 💰 สลับสถานะ
+function togglePaid(index) {
+    data[index].paid = !data[index].paid;
+    saveData();
+    render();
+}
+
+// ❌ ลบ
+function deleteItem(index) {
+    if (confirm("ลบรายการนี้?")) {
+        data.splice(index, 1);
+        saveData();
+        render();
+    }
+}
+
+// ✏️ แก้ไข
+function editItem(index) {
+    let p = data[index];
+    document.getElementById("name").value = p.name;
+    document.getElementById("numbers").value = p.numbers.join(" ");
+    document.getElementById("price").value = p.price;
+
+    editIndex = index;
+}
+
+// 🔄 แสดงผล
+function render() {
+
+    data.sort((a, b) => {
+        let nameCompare = a.name.localeCompare(b.name, 'th');
+        if (nameCompare !== 0) return nameCompare;
+        return (a.numbers[0] || "").localeCompare(b.numbers[0] || "");
+    });
+
+    let list = document.getElementById("list");
+    let keyword = document.getElementById("search").value.toLowerCase();
+
+    list.innerHTML = "";
+
+    let totalAll = 0;
+    let totalPaid = 0;
+    let totalUnpaid = 0;
+    let countPaid = 0;
+    let countAll = 0;
+    let indexDisplay = 1;
+
+    data.forEach((p, i) => {
+        if (!p.name.toLowerCase().includes(keyword)) return;
+
+        countAll++;
+        totalAll += p.total;
+
+        if (p.paid) {
+            totalPaid += p.total;
+            countPaid++;
+        } else {
+            totalUnpaid += p.total;
+        }
+
+        let div = document.createElement("div");
+        div.className = "card " + (p.paid ? "paid" : "unpaid");
+
+        div.innerHTML = `
+            <b>${indexDisplay}. ${p.name}</b><br>
+            เลข: ${p.numbers.join(", ")}<br>
+            จำนวน: ${p.numbers.length} เลข<br>
+            รวม: ${p.total} บาท<br>
+            สถานะ: ${p.paid ? "จ่ายแล้ว" : "ค้างจ่าย"}<br>
+
+            <button onclick="togglePaid(${i})">สลับสถานะ</button>
+            <button onclick="editItem(${i})">แก้ไข</button>
+            <button onclick="deleteItem(${i})">ลบ</button>
+        `;
+
+        list.appendChild(div);
+        indexDisplay++;
+    });
+
+    document.getElementById("summary").innerHTML = `
+        👥 ทั้งหมด: ${countAll} คน <br>
+        ✅ จ่ายแล้ว: ${countPaid} คน <br>
+        ❌ ค้าง: ${countAll - countPaid} คน <br><br>
+
+        💰 ยอดรวม: ${totalAll} บาท <br>
+        🟢 จ่ายแล้ว: ${totalPaid} บาท <br>
+        🔴 ค้าง: ${totalUnpaid} บาท
+    `;
+}
+
+// โหลดครั้งแรก
+render();
+
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+</script>
+
+</body>
+</html>
