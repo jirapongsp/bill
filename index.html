@@ -85,23 +85,31 @@ let data = [];
 
 // ================= AUTH =================
 async function register() {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
         email: email.value,
         password: password.value
     });
 
-    if (error) alert(error.message);
-    else alert("สมัครสำเร็จ");
+    if (error) {
+        alert(error.message);
+    } else {
+        alert("สมัครสำเร็จ (ถ้ายัง login ไม่ได้ ให้ปิด confirm email)");
+    }
 }
 
 async function login() {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
         email: email.value,
         password: password.value
     });
 
-    if (error) alert(error.message);
+    if (error) {
+        alert(error.message);
+    } else {
+        location.reload();
+    }
 }
+    
 
 async function logout() {
     await supabase.auth.signOut();
