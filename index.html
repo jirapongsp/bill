@@ -7,11 +7,6 @@
 
 <title>Bill App Pro</title>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
 <!-- Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -63,9 +58,8 @@ button { background: #3498db; color: white; border: none; }
 
 <div id="list"></div>
 
-<!-- 🔥 เพิ่ม history จาก Supabase -->
 <div class="card">
-    <h3>📦 ประวัติ (Supabase)</h3>
+    <h3>📦 ประวัติ</h3>
     <div id="bill-list"></div>
 </div>
 
@@ -81,66 +75,75 @@ button { background: #3498db; color: white; border: none; }
 
 <script>
 
-// 🔥 ใส่ของคุณ
+// 🔥 ใส่ของคุณจริง
 const supabaseUrl = 'https://qrfwdlmdbdmbzaevpxks.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFyZndkbG1kYmRtYnphZXZweGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTM1NjEsImV4cCI6MjA5MTk2OTU2MX0.sXOWtQinjLMS-Mw5k8i0o7AgFiQezjiC6UMzdT550n0'
+const supabaseKey = 'YOUR_ANON_KEY'
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey)
-
-// Firebase
-//    const firebaseConfig = {
- // apiKey: "YOUR_KEY",
- // authDomain: "YOUR_DOMAIN",
- // databaseURL: "YOUR_DB_URL",
- // projectId: "YOUR_ID"
-//};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
 
 let user = null;
 let data = [];
 
-// AUTH
-function register() {
-    firebase.auth().createUserWithEmailAndPassword(email.value, password.value)
-    .catch(e => alert(e.message));
+// ================= AUTH =================
+async function register() {
+    const { error } = await supabase.auth.signUp({
+        email: email.value,
+        password: password.value
+    });
+
+    if (error) alert(error.message);
+    else alert("สมัครสำเร็จ");
 }
 
-function login() {
-    firebase.auth().signInWithEmailAndPassword(email.value, password.value)
-    .catch(e => alert(e.message));
+async function login() {
+    const { error } = await supabase.auth.signInWithPassword({
+        email: email.value,
+        password: password.value
+    });
+
+    if (error) alert(error.message);
 }
 
-function logout() {
-    firebase.auth().signOut();
+async function logout() {
+    await supabase.auth.signOut();
+    location.reload();
 }
 
-firebase.auth().onAuthStateChanged(u => {
-    if (u) {
-        user = u;
+// ตรวจ session
+async function checkUser() {
+    const { data } = await supabase.auth.getUser();
+
+    if (data.user) {
+        user = data.user;
+
         loginPage.style.display = "none";
         mainPage.style.display = "block";
 
-        db.ref("users/" + user.uid).on("value", snap => {
-            data = snap.val() || [];
-            render();
-        });
-
-        loadBills(); // 🔥 โหลด history
+        loadData();
+        loadBills();
 
     } else {
         loginPage.style.display = "block";
         mainPage.style.display = "none";
     }
-});
-
-// DATA
-function save() {
-    db.ref("users/" + user.uid).set(data);
 }
 
-// 🔥 เพิ่ม Supabase ตอนเพิ่มข้อมูล
-function addPerson() {
+checkUser();
+
+// ================= DATA =================
+
+// โหลดรายการหลัก
+async function loadData() {
+    const { data: result } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('user_id', user.id);
+
+    data = result || [];
+    render();
+}
+
+// เพิ่มข้อมูล
+async function addPerson() {
     let numbers = document.getElementById("numbers").value
         .split(/[\s,]+/)
         .filter(n => n);
@@ -149,22 +152,21 @@ function addPerson() {
 
     const item = {
         name: name.value,
-        numbers,
-        price: price.value,
-        total,
-        paid: false
+        numbers: numbers.join(","),
+        amount: total,
+        paid: false,
+        user_id: user.id
     };
 
-    data.push(item);
-    save();
-
-    // 🔥 บันทึก Supabase
-    saveBill(item);
+    await supabase.from('bills').insert([item]);
 
     name.value = numbers.value = price.value = "";
+
+    loadData();
+    loadBills();
 }
 
-// UI
+// ================= UI =================
 function render() {
     list.innerHTML = "";
 
@@ -176,26 +178,49 @@ function render() {
 
         div.innerHTML = `
         <b>${i+1}. ${p.name}</b><br>
-        ${p.total} บาท<br>
-        <button onclick="toggle(${i})">จ่าย</button>
-        <button onclick="del(${i})">ลบ</button>
+        ${p.amount} บาท<br>
+        <button onclick="toggle(${p.id})">จ่าย</button>
+        <button onclick="del(${p.id})">ลบ</button>
         `;
 
         list.appendChild(div);
     });
 }
 
-function toggle(i){
-    data[i].paid = !data[i].paid;
-    save();
+// update paid
+async function toggle(id){
+    const item = data.find(x => x.id === id);
+    await supabase
+        .from('bills')
+        .update({ paid: !item.paid })
+        .eq('id', id);
+
+    loadData();
 }
 
-function del(i){
-    data.splice(i,1);
-    save();
+// delete
+async function del(id){
+    await supabase.from('bills').delete().eq('id', id);
+    loadData();
 }
 
-// UNPAID
+// ================= HISTORY =================
+async function loadBills() {
+    const { data } = await supabase
+        .from('bills')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('id', { ascending: false });
+
+    const el = document.getElementById('bill-list');
+    el.innerHTML = '';
+
+    data.forEach(b => {
+        el.innerHTML += `<div>${b.name} - ${b.amount} บาท</div>`;
+    });
+}
+
+// ================= UNPAID =================
 function showUnpaid(){
     mainPage.style.display="none";
     unpaidPage.style.display="block";
@@ -203,7 +228,7 @@ function showUnpaid(){
     unpaidList.innerHTML="";
 
     data.filter(p=>!p.paid).forEach((p,i)=>{
-        unpaidList.innerHTML += `${i+1}. ${p.name} - ${p.total}<br>`;
+        unpaidList.innerHTML += `${i+1}. ${p.name} - ${p.amount}<br>`;
     });
 }
 
@@ -212,50 +237,11 @@ function back(){
     unpaidPage.style.display="none";
 }
 
-// 🔥 Supabase Save
-async function saveBill(item) {
-    try {
-        await supabase.from('bills').insert([{
-            name: item.name,
-            amount: item.total,
-            numbers: item.numbers.join(","),
-            user_id: user.uid
-        }]);
-    } catch (e) {
-        console.error("Supabase error", e);
-    }
-}
-
-// 🔥 โหลด history
-async function loadBills() {
-    try {
-        const { data, error } = await supabase
-            .from('bills')
-            .select('*')
-            .eq('user_id', user.uid)
-            .order('id', { ascending: false });
-
-        if (error) throw error;
-
-        const el = document.getElementById('bill-list');
-        el.innerHTML = '';
-
-        data.forEach(b => {
-            el.innerHTML += `
-                <div>${b.name} - ${b.amount} บาท</div>
-            `;
-        });
-
-    } catch (e) {
-        console.error(e);
-    }
-}
-
 // LINE
 function sendToLine(){
     let txt="🔴 ค้าง\n";
     data.filter(p=>!p.paid).forEach((p,i)=>{
-        txt+=`${i+1}. ${p.name} ${p.total} บาท\n`;
+        txt+=`${i+1}. ${p.name} ${p.amount} บาท\n`;
     });
     window.open("https://line.me/R/msg/text/?"+encodeURIComponent(txt));
 }
